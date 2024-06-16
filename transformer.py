@@ -100,7 +100,6 @@ def split_list(lst, per):
 
 
 
-
 class MultiHeadSelfAttention(layers.Layer):
     def __init__(self, embed_dim, num_heads):
         super(MultiHeadSelfAttention, self).__init__()
@@ -128,7 +127,6 @@ class MultiHeadSelfAttention(layers.Layer):
         weights = tf.nn.softmax(scaled_score, axis=-1)
         output = tf.matmul(weights, value)
         return output, weights
-
     def separate_heads(self, x, batch_size):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.projection_dim))
         return tf.transpose(x, perm=[0, 2, 1, 3])
@@ -147,33 +145,56 @@ class MultiHeadSelfAttention(layers.Layer):
         output = self.combine_heads(concat_attention)
 
         return output
-
+import keras
+from keras import layers
 
 class TransformerBlock(layers.Layer):
-    def __init__(self, embed_dim, num_heads, ff_dim, rate=0.1):
-        super(TransformerBlock, self).__init__()
-        self.att = MultiHeadSelfAttention(embed_dim, num_heads)
-        self.ffn = keras.Sequential([
-            layers.Dense(ff_dim, activation="relu"),
-            layers.Dense(embed_dim),
-        ])
-        self.layernorm = layers.LayerNormalization(epsilon=1e-6)
-        self.dropout = layers.Dropout(rate)
+    def __init__(self, embed_dim, num_heads, ff_dim, rate=0.1, **kwargs):
+        super(TransformerBlock, self).__init__(**kwargs)
+        self.att = layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
+        self.ffn = keras.Sequential(
+            [layers.Dense(ff_dim, activation="relu"), layers.Dense(embed_dim)]
+        )
+        self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm2 = layers.LayerNormalization(epsilon=1e-6)
+        self.dropout1 = layers.Dropout(rate)
+        self.dropout2 = layers.Dropout(rate)
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.ff_dim = ff_dim
+        self.rate = rate
 
-    def call(self, inputs, training):
-        attn_output = self.att(inputs)
-        attn_output = self.dropout(attn_output, training=training)
-        out1 = self.layernorm(inputs + attn_output)
+    def call(self, inputs):
+        attn_output = self.att(inputs, inputs)
+        attn_output = self.dropout1(attn_output, training=True)
+        out1 = self.layernorm1(inputs + attn_output)
         ffn_output = self.ffn(out1)
-        ffn_output = self.dropout(ffn_output, training=training)
-        return self.layernorm(out1 + ffn_output)
+        ffn_output = self.dropout2(ffn_output, training=True)
+        return self.layernorm2(out1 + ffn_output)
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'embed_dim': self.embed_dim,
+            'num_heads': self.num_heads,
+            'ff_dim': self.ff_dim,
+            'rate': self.rate,
+        })
+        return config
 
 
-class TokenAndPositionEmbedding(layers.Layer):
-    def __init__(self, maxlen, vocab_size, embed_dim):
-        super(TokenAndPositionEmbedding, self).__init__()
-        self.token_emb = layers.Embedding(input_dim=vocab_size, output_dim=embed_dim)
-        self.pos_emb = layers.Embedding(input_dim=maxlen, output_dim=embed_dim)
+
+class TokenAndPositionEmbedding(keras.layers.Layer):
+    def __init__(self, maxlen, vocab_size, embed_dim, **kwargs):
+        super(TokenAndPositionEmbedding, self).__init__(**kwargs)
+        self.maxlen = maxlen
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+
+    def build(self, input_shape):
+        self.token_emb = keras.layers.Embedding(input_dim=self.vocab_size, output_dim=self.embed_dim)
+        self.pos_emb = keras.layers.Embedding(input_dim=self.maxlen, output_dim=self.embed_dim)
+        super().build(input_shape)
 
     def call(self, x):
         maxlen = tf.shape(x)[-1]
@@ -182,6 +203,17 @@ class TokenAndPositionEmbedding(layers.Layer):
         x = self.token_emb(x)
         return x + positions
 
+    def compute_output_shape(self, input_shape):
+        return input_shape[0], input_shape[1], self.embed_dim
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'maxlen': self.maxlen,
+            'vocab_size': self.vocab_size,
+            'embed_dim': self.embed_dim,
+        })
+        return config
 
 def build_transformer_model(maxlen, vocab_size, embed_dim, num_heads, ff_dim, num_blocks, dropout_rate, num_encoders, num_decoders):
     inputs = layers.Input(shape=(maxlen,))
