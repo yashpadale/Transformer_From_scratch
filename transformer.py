@@ -78,25 +78,9 @@ def return_order(dict_, content: str):
 
 
 def returns_batches(order, n):
-    batch_size = int(n * 0.90)  # Calculate three-fourths of n for the batch size
-    padding_size = n
-
-    num_batches = len(order) // batch_size
-    # Calculate the length of the order after truncating to fit the batches
-    order = order[:num_batches * batch_size]
-
-    # Create batches with padding filled with zeros
-    batches = [order[i:i + batch_size] + [0] * (padding_size - len(order[i:i + batch_size])) for i in range(0, len(order), batch_size)]
+    batches = [order[i:i + n] for i in range(len(order) - n + 1)]
     return batches
 
-'''
-
-def returns_batches(order,n):
-    num_batches = len(order) //  n
-    order = order[:num_batches * n]
-    batches = [order[i:i + n] for i in range(0, len(order), n)]
-    return batches
-'''
 
 def rearrange(batches):
     X = []
