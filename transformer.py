@@ -5,7 +5,6 @@ from tensorflow.keras import layers
 import string
 import nltk
 from nltk.tokenize import word_tokenize, sent_tokenize
-from gensim.models import Word2Vec
 
 
 
@@ -53,10 +52,55 @@ def return_dict(unique_words:list):
     for i in range(len(unique_words)):
         dictionary[unique_words[i]]=i+1
     return dictionary
+def pad_segments(content: str, maxlen: int):
+    maxlen = maxlen - 1  # Adjust maxlen to account for the <start> and <end> tokens
+    segments = content.split('<end>')
+    padded_segments = []
 
+    for segment in segments:
+        segment = segment.strip()
+        if not segment:
+            continue
 
+        # Ensure <start> and <end> are treated as single tokens
+        segment = segment.replace('<start>', 'STARTTOKENPLACEHOLDER')
+        segment = segment.replace('<end>', 'ENDTOKENPLACEHOLDER')
 
+        # Tokenize the segment
+        tokens = word_tokenize(segment)
 
+        # Replace the placeholders with original tokens
+        tokens = ['<start>' if token == 'STARTTOKENPLACEHOLDER' else token for token in tokens]
+        tokens = ['<end>' if token == 'ENDTOKENPLACEHOLDER' else token for token in tokens]
+
+        # Ensure the segment starts with '<start>'
+        if tokens[0] != '<start>':
+            print(tokens)
+            print(segment)
+            raise ValueError("Segment does not start with '<start>'")
+
+        # Remove '<start>' token for padding calculation
+        start_token = tokens.pop(0)
+
+        # Check if the segment exceeds maxlen - 1 (considering <start> and <end>)
+        if len(tokens) > maxlen - 1:
+            tokens = tokens[:maxlen - 1]
+
+        # Add '<space>' tokens if necessary to pad the segment to maxlen - 1
+        padding_needed = maxlen - len(tokens) - 1
+        tokens.extend(['<space>'] * padding_needed)
+
+        # Reinsert '<start>' token at the beginning
+        tokens.insert(0, start_token)
+
+        # Add '<end>' token at the end
+        tokens.append('<end>')
+
+        padded_segments.append(' '.join(tokens))
+
+    # Join all padded segments into the final output
+    final_output = ' '.join(padded_segments)
+    return final_output
 
 
 def read_file(filename):
@@ -64,16 +108,36 @@ def read_file(filename):
         content = file.read()
     return content
 
+
 def split_and_sort(string):
+    string = string.replace('<start>', 'STARTTOKENPLACEHOLDER')
+    string = string.replace('<end>', 'ENDTOKENPLACEHOLDER')
+    string = string.replace('<space>', 'SPACETOKENPLACEHOLDER')
     tokens = word_tokenize(string)
+    tokens = ['<start>' if token == 'STARTTOKENPLACEHOLDER' else token for token in tokens]
+    tokens = ['<end>' if token == 'ENDTOKENPLACEHOLDER' else token for token in tokens]
+    tokens = ['<space>' if token == 'SPACETOKENPLACEHOLDER' else token for token in tokens]
     unique_words_list = list(set(tokens))
     return unique_words_list
 
 
-
 def return_order(dict_, content: str):
+    # Replace special tokens with placeholders
+    content = content.replace('<start>', 'STARTTOKENPLACEHOLDER')
+    content = content.replace('<end>', 'ENDTOKENPLACEHOLDER')
+    content = content.replace('<space>', 'SPACETOKENPLACEHOLDER')
+
+    # Tokenize the content
     tokens = word_tokenize(content)
+
+    # Replace placeholders back to original tokens
+    tokens = ['<start>' if token == 'STARTTOKENPLACEHOLDER' else token for token in tokens]
+    tokens = ['<end>' if token == 'ENDTOKENPLACEHOLDER' else token for token in tokens]
+    tokens = ['<space>' if token == 'SPACETOKENPLACEHOLDER' else token for token in tokens]
+
+    # Map tokens to their corresponding values in the dictionary
     order = [dict_[token] for token in tokens if token in dict_]
+
     return order
 
 
@@ -244,10 +308,16 @@ def build_transformer_model(maxlen, vocab_size, embed_dim, num_heads, ff_dim, nu
 
 import numpy as np
 
-def transformer(maxlen, embed_dim, num_heads, ff_dim, num_blocks, dropout_rate, input_file, per, batch_size, epochs, num_encoders, num_decoders,window):
+def transformer(maxlen, embed_dim, num_heads, ff_dim, num_blocks, dropout_rate, input_file, per, batch_size, epochs, num_encoders, num_decoders):
     # Read input file
-    with open(input_file, 'r') as file:
+    with open(input_file, 'r',encoding='utf-8') as file:
         content = file.read()
+
+    content=pad_segments(content=content,maxlen=maxlen)
+    print('processed text for training')
+    print(content)
+
+
 
     # Split and sort the content
     u = split_and_sort(string=content)
@@ -266,10 +336,10 @@ def transformer(maxlen, embed_dim, num_heads, ff_dim, num_blocks, dropout_rate, 
     # Split data into train and test sets
     x_train, x_test = split_list(lst=X, per=per)
     y_train, y_test = split_list(lst=Y, per=per)
-    x_train=np.array(x_train)
-    x_test = np.array(x_test)
-    y_train = np.array(y_train)
-    y_test = np.array(y_test)
+    x_train=np.array(X)
+    x_test = np.array(x_test[10:20])
+    y_train = np.array(Y)
+    y_test = np.array(y_test[10:20])
 
     # Build the transformer model
     model = build_transformer_model(maxlen, vocab_size, embed_dim, num_heads, ff_dim, num_blocks, dropout_rate, num_encoders, num_decoders)
@@ -305,6 +375,9 @@ def transformer(maxlen, embed_dim, num_heads, ff_dim, num_blocks, dropout_rate, 
 
 def query_gen_sentences(query, model, dictionary, maxlen):
     # Convert the query to the order of words based on the provided dictionary
+
+
+
     query_order = return_order(dict_=dictionary, content=query)
     u_order = np.array(query_order)
 
