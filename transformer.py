@@ -52,6 +52,9 @@ def return_dict(unique_words:list):
     for i in range(len(unique_words)):
         dictionary[unique_words[i]]=i+1
     return dictionary
+
+from nltk.tokenize import word_tokenize
+
 def pad_segments(content: str, maxlen: int):
     maxlen = maxlen - 1  # Adjust maxlen to account for the <start> and <end> tokens
     segments = content.split('<end>')
@@ -101,7 +104,6 @@ def pad_segments(content: str, maxlen: int):
     # Join all padded segments into the final output
     final_output = ' '.join(padded_segments)
     return final_output
-
 
 def read_file(filename):
     with open(filename, 'r',encoding='utf-8') as file:
@@ -308,10 +310,10 @@ def build_transformer_model(maxlen, vocab_size, embed_dim, num_heads, ff_dim, nu
 
 import numpy as np
 
-def transformer(maxlen, embed_dim, num_heads, ff_dim, num_blocks, dropout_rate, input_file, per, batch_size, epochs, num_encoders, num_decoders):
+def transformer(maxlen, embed_dim, num_heads, ff_dim, num_blocks,content, dropout_rate, per, batch_size, epochs, num_encoders, num_decoders):
     # Read input file
-    with open(input_file, 'r',encoding='utf-8') as file:
-        content = file.read()
+    # with open(input_file, 'r', encoding='utf-8') as file:
+    #     content = file.read()
 
     content=pad_segments(content=content,maxlen=maxlen)
     print('processed text for training')
@@ -452,3 +454,5 @@ print("Predicted Classes:", predicted_classes)
 
 
 '''
+
+
