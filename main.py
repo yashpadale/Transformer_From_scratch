@@ -26,7 +26,22 @@ def generate_text(s1):
 
     return generated_text
 
+model.save('transformer_model.h5')
+with open('dictionary.pkl', 'wb') as f:
+    pickle.dump(dictionary, f)
 
+
+
+
+
+custom_objects = {
+    'MultiHeadSelfAttention': MultiHeadSelfAttention,
+    'TransformerBlock': TransformerBlock,
+    'TokenAndPositionEmbedding': TokenAndPositionEmbedding
+}
+loaded_model = load_model('transformer_model.h5', custom_objects=custom_objects)
+with open('dictionary.pkl', 'rb') as f:
+    loaded_dictionary = pickle.load(f)
 
 
 while True:
