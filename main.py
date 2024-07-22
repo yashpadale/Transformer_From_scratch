@@ -14,17 +14,19 @@ main_model, dictionary_1, maxlen_1 = transformer(maxlen=100,
                                                  num_decoders=1,num_encoders=1,
                                                  window=10)
 
-def generate_text(s1):
+def generate_text(s1,main_model,dictionary_1,maxlen_1):
+    i = '<start> ' + s1 + ' <end>'
+    s1 = pad_segments(i, maxlen_1)
     words = query_gen_sentences(query=s1,
                                 model=main_model, dictionary=dictionary_1, maxlen=maxlen_1)
-
-    for i in range(2):
+    s=s1.split(' ')
+    for i in range(len(s)):
         w1 = query_gen_sentences(query=words[-1],
                                  model=main_model, dictionary=dictionary_1, maxlen=maxlen_1)
         words.append(w1[0])
-    generated_text = ' '.join(words)
+    #generated_text = ' '.join(words)
 
-    return generated_text
+    return words[-1]
 
 model.save('transformer_model.h5')
 with open('dictionary.pkl', 'wb') as f:
